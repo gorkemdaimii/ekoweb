@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Yankı Odası</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;1,400;1,500&family=DM+Sans:wght@300;400;500&display=swap');
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root{
+  --bg: #0a0a0a;
+  --bg2: #131210;
+  --ink: #f1ede4;
+  --ink2: #9c968a;
+  --ink3: #524e46;
+  --line: rgba(241,237,228,0.09);
+  --accent: #c4522a;
+  --serif: 'Playfair Display', Georgia, serif;
+  --sans: 'DM Sans', -apple-system, sans-serif;
+}
+
+html, body{ height: 100%; }
+body{
+  background: var(--bg); color: var(--ink); font-family: var(--sans);
+  overflow: hidden; position: relative;
+}
+
+@media (hover: hover) and (pointer: fine){
+  body{ cursor: none; }
+}
+
+.grain{
+  position: fixed; inset: 0; z-index: 9000; pointer-events: none;
+  opacity: 0.045; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+.cursor-dot, .cursor-ring{
+  position: fixed; top: 0; left: 0; pointer-events: none; z-index: 9999;
+  border-radius: 50%; transform: translate(-50%,-50%);
+}
+.cursor-dot{ width: 5px; height: 5px; background: var(--accent); }
+.cursor-ring{ width: 26px; height: 26px; border: 0.5px solid var(--ink2); transition: width 0.2s, height 0.2s, border-color 0.2s; }
+.cursor-ring.hover{ width: 44px; height: 44px; border-color: var(--accent); }
+
+/* ---------- ROOM ---------- */
+.room{
+  height: 100vh; display: flex; flex-direction: column; position: relative; z-index: 1;
+}
+@supports (height: 100dvh){ .room{ height: 100dvh; } }
+
+.room-header{
+  padding: 1.6rem 1.8rem 0; opacity: 0.55; transition: opacity 1.2s ease;
+}
+.room-header.settled{ opacity: 0.22; }
+.room-header .brand{ font-family: var(--serif); font-style: italic; font-size: 1rem; letter-spacing: 0.02em; }
+.room-header .sub{ font-size: 10.5px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink2); margin-top: 0.2rem; }
+
+.echo-field{
+  position: relative; flex: 1; overflow: hidden;
+}
+
+.intro-msg{
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+  text-align: center; pointer-events: none; transition: opacity 1s ease;
+  width: 90%; max-width: 460px;
+}
+.intro-msg .l1{ font-family: var(--serif); font-style: italic; font-size: clamp(1.3rem,4vw,1.8rem); color: var(--ink); margin-bottom: 0.6rem; }
+.intro-msg .l2{ font-size: 0.85rem; color: var(--ink3); line-height: 1.6; }
+
+.mark{
+  position: absolute; transform: translate(-50%,-50%); white-space: nowrap;
+  font-family: var(--serif); pointer-events: none; will-change: opacity, transform;
+  transition: opacity 0.9s ease;
+  max-width: 70vw; overflow: hidden; text-overflow: ellipsis;
+}
+.mark.utterance{ color: var(--ink); font-style: normal; }
+.mark.echo{ color: var(--ink2); font-style: italic; }
+
+.ripple{
+  position: absolute; border-radius: 50%; border: 1px solid var(--accent);
+  transform: translate(-50%,-50%); pointer-events: none; opacity: 0.5;
+  animation: rippleOut 1s ease-out forwards;
+}
+@keyframes rippleOut{ to{ width: 240px; height: 240px; opacity: 0; } }
+
+.prompt-wrap{ padding: 1.6rem 1.8rem 1.9rem; position: relative; }
+.prompt-bar{
+  max-width: 560px; margin: 0 auto; display: flex; align-items: center; gap: 0.6rem;
+  border-bottom: 0.5px solid var(--line); padding-bottom: 0.6rem; transition: border-color 0.3s;
+}
+.prompt-bar.shake{ animation: shake 0.4s ease; }
+@keyframes shake{ 0%,100%{ transform: translateX(0); } 25%{ transform: translateX(-6px); } 75%{ transform: translateX(6px); } }
+.prompt-bar::before{ content: '·'; color: var(--accent); font-size: 1.2rem; }
+.prompt-bar input{
+  flex: 1; background: none; border: none; outline: none; color: var(--ink);
+  font-family: var(--serif); font-style: italic; font-size: 1.05rem; caret-color: var(--accent);
+}
+.prompt-bar input::placeholder{ color: var(--ink3); font-style: italic; }
+.img-btn{
+  background: none; border: none; color: var(--ink3); padding: 0.3rem; display: flex;
+  align-items: center; transition: color 0.3s, transform 0.15s; flex-shrink: 0;
+}
+.img-btn:hover{ color: var(--accent); }
+.img-btn:active{ transform: scale(0.92); }
+
+.room{ transition: box-shadow 0.4s ease; }
+.room.drag-over{ box-shadow: inset 0 0 0 2px var(--accent-dim, var(--accent)); }
+
+.mark.swatch{ border-radius: 50%; }
+.mark.thumb{
+  width: 64px; height: 64px; border-radius: 50%; background-size: cover; background-position: center;
+  filter: blur(0.4px); border: 1px solid rgba(241,237,228,0.15);
+}
+
+.prompt-meta{
+  display: flex; align-items: center; justify-content: space-between; max-width: 560px;
+  margin: 0.7rem auto 0; font-size: 11px; color: var(--ink3); letter-spacing: 0.04em;
+}
+.map-link{
+  background: none; border: none; color: var(--ink3); font-size: 11px; letter-spacing: 0.06em;
+  text-transform: uppercase; opacity: 0; transition: opacity 0.6s ease, color 0.3s;
+}
+.map-link.show{ opacity: 1; }
+.map-link:hover{ color: var(--accent); }
+
+.info-btn{
+  position: absolute; bottom: 1.2rem; right: 1.4rem;
+  width: 26px; height: 26px; border-radius: 50%; border: 0.5px solid var(--line);
+  background: none; color: var(--ink3); font-size: 11px; font-style: italic; font-family: var(--serif);
+  z-index: 5;
+}
+.info-pop{
+  position: absolute; bottom: 4.4rem; right: 1.4rem; width: 250px; z-index: 6;
+  background: var(--bg2); border: 0.5px solid var(--line); border-radius: 6px; padding: 1rem 1.1rem;
+}
+.info-pop p{ font-size: 0.76rem; color: var(--ink2); line-height: 1.65; margin-bottom: 0.7rem; }
+.info-pop button{ background: none; border: 0.5px solid var(--line); color: var(--ink2); font-size: 11px; padding: 0.3rem 0.8rem; border-radius: 100px; }
+
+/* ---------- MAP SCREEN ---------- */
+.map-screen{
+  position: fixed; inset: 0; z-index: 50; background: var(--bg);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 2.5rem 1.5rem; opacity: 0; pointer-events: none; transition: opacity 0.8s ease;
+}
+.map-screen.show{ opacity: 1; pointer-events: auto; }
+.map-inner{ max-width: 560px; width: 100%; text-align: center; }
+.map-kicker{ font-size: 11px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--accent); margin-bottom: 1rem; }
+.map-inner h2{ font-family: var(--serif); font-weight: 400; font-size: clamp(1.6rem,4.5vw,2.2rem); line-height: 1.3; margin-bottom: 2rem; }
+.map-inner h2 em{ font-style: italic; color: var(--accent); }
+
+.constellation-wrap{ position: relative; width: 100%; max-width: 420px; margin: 0 auto 2rem; aspect-ratio: 1/1; }
+.lines-svg{ position: absolute; inset: 0; width: 100%; height: 100%; }
+.echo-line{ fill: none; stroke-linecap: round; transition: stroke-dashoffset 1.1s ease; }
+.center-node{
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+  width: 70px; height: 70px; border-radius: 50%; background: var(--bg);
+  border: 1px solid var(--accent); display: flex; align-items: center; justify-content: center;
+  font-family: var(--serif); font-style: italic; font-size: 0.85rem; z-index: 3;
+}
+.echo-node{
+  position: absolute; transform: translate(-50%,-50%); display: flex; flex-direction: column;
+  align-items: center; gap: 0.4rem; z-index: 2; opacity: 0; transition: opacity 0.7s ease;
+}
+.echo-node.visible{ opacity: 1; }
+.node-circle{ border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--bg); border: 1px solid var(--c); }
+.node-pct{ font-size: 0.7rem; font-weight: 500; color: var(--c); }
+.node-label{ font-size: 0.62rem; color: var(--ink2); text-align: center; max-width: 90px; line-height: 1.35; }
+
+.map-summary{ font-size: 0.92rem; color: var(--ink2); line-height: 1.8; margin-bottom: 1.5rem; }
+.map-summary strong{ color: var(--ink); font-weight: 500; }
+.map-summary .pct{ color: var(--accent); font-weight: 500; }
+.map-reflection{ font-family: var(--serif); font-style: italic; font-size: 1.25rem; margin-bottom: 2rem; line-height: 1.5; }
+.map-reset{ background: none; border: 0.5px solid var(--line); color: var(--ink2); font-size: 13px; padding: 0.75rem 1.5rem; border-radius: 100px; }
+.map-reset:hover{ border-color: var(--accent); color: var(--ink); }
+
+@media (max-width: 560px){
+  .echo-node{ gap: 0.25rem; }
+  .node-label{ font-size: 0.56rem; max-width: 70px; }
+  .mark{ font-size: 0.85rem !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="grain"></div>
+<div class="cursor-dot" id="cursorDot"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+
+<div class="room" id="room">
+  <div class="room-header" id="roomHeader">
+    <div class="brand">EKO</div>
+    <div class="sub">yankı odası</div>
+  </div>
+
+  <div class="echo-field" id="echoField">
+    <div class="intro-msg" id="introMsg">
+      <div class="l1">bir şey söyle.</div>
+      <div class="l2">yankı, sana ne döneceğini henüz bilmiyor — yazdıkça ya da bir görsel bıraktıkça öğrenecek.</div>
+    </div>
+  </div>
+
+  <div class="prompt-wrap">
+    <div class="prompt-bar" id="promptBar">
+      <input type="text" id="promptInput" placeholder="bir şey söyle..." autocomplete="off" maxlength="120">
+      <button class="img-btn" id="imgBtn" type="button" aria-label="Bir görsel bırak" title="Bir görsel bırak">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5-4 4-3-3-6 6"/></svg>
+      </button>
+      <input type="file" id="imageFileInput" accept="image/*" hidden>
+    </div>
+    <div class="prompt-meta">
+      <span id="countLabel"></span>
+      <button class="map-link" id="mapLink">yankı haritasını gör →</button>
+    </div>
+  </div>
+
+  <button class="info-btn" id="infoBtn">i</button>
+  <div class="info-pop" id="infoPop" hidden>
+    <p>Söylediklerin ve bıraktığın görseller hiçbir sunucuya gönderilmiyor, hiçbir yerde saklanmıyor — her şey tarayıcında kalır ve sayfayı kapattığında kaybolur. Görsellerden sadece renk örnekleri alınır, görselin kendisi hiçbir yere işlenmez. Yankının verdiği cevaplar, ECHO kampanyasının düşünsel çerçevesini hissettirmek için tasarlanmış kurgusal bir mekaniktir; gerçek bir yapay zeka modeli sorgulanmıyor.</p>
+    <button id="infoClose">Kapat</button>
+  </div>
+</div>
+
+<div class="map-screen" id="mapScreen">
+  <div class="map-inner">
+    <p class="map-kicker">yankı haritası</p>
+    <h2>Söylediklerin, <em>buraya kadar gitti.</em></h2>
+    <div class="constellation-wrap" id="constellationWrap">
+      <svg class="lines-svg" id="linesSvg" viewBox="0 0 600 600"></svg>
+      <div class="center-node">SEN</div>
+    </div>
+    <p class="map-summary" id="mapSummary"></p>
+    <p class="map-reflection">Bu iz, gelecekte nasıl bir yankı bırakacak?</p>
+    <button class="map-reset" id="mapReset">yeniden başla</button>
+  </div>
+</div>
+
+<script>
+/* ---------- cursor ---------- */
+const cd = document.getElementById('cursorDot');
+const cr = document.getElementById('cursorRing');
+let mx = 0, my = 0, rx = 0, ry = 0;
+window.addEventListener('mousemove', e => {
+  mx = e.clientX; my = e.clientY;
+  cd.style.left = mx + 'px'; cd.style.top = my + 'px';
+  cr.classList.toggle('hover', !!e.target.closest('button, input'));
+});
+function ringLoop(){
+  rx += (mx - rx) * 0.18; ry += (my - ry) * 0.18;
+  cr.style.left = rx + 'px'; cr.style.top = ry + 'px';
+  requestAnimationFrame(ringLoop);
+}
+ringLoop();
+
+/* ---------- state ---------- */
+const field = document.getElementById('echoField');
+const introMsg = document.getElementById('introMsg');
+const roomHeader = document.getElementById('roomHeader');
+const input = document.getElementById('promptInput');
+const promptBar = document.getElementById('promptBar');
+const countLabel = document.getElementById('countLabel');
+const mapLink = document.getElementById('mapLink');
+
+let utteranceCount = 0;
+let markCount = 0;
+let log = [];
+
+const CONNECTORS = [
+  "zaten buradaydı", "başkası da demişti", "bir yerde kalmış", "şimdi sana dönüyor",
+  "değişti, ama hâlâ sen", "bir başkasının sesiyle karıştı", "tam olarak bu değildi", "neredeyse aynı"
+];
+
+function ageField(){
+  field.querySelectorAll('.mark').forEach(el => {
+    const cur = parseFloat(el.dataset.op || '1');
+    const next = cur * 0.93;
+    el.dataset.op = next;
+    el.style.opacity = next;
+    if (next < 0.04) el.remove();
+  });
+}
+
+function nextPos(){
+  markCount++;
+  const w = field.clientWidth, h = field.clientHeight;
+  const angle = markCount * 137.5 * Math.PI / 180;
+  const radius = Math.min(w, h) * 0.032 * Math.sqrt(markCount);
+  return {
+    x: w / 2 + radius * Math.cos(angle),
+    y: h / 2 + radius * Math.sin(angle) * 0.72
+  };
+}
+
+function dismissIntro(){
+  if (markCount === 0 && introMsg.parentNode){
+    introMsg.style.opacity = '0';
+    setTimeout(() => introMsg.remove(), 900);
+  }
+}
+
+function allocateSlot(){
+  ageField();
+  return nextPos();
+}
+
+function placeRipple(x, y, big){
+  const r = document.createElement('div');
+  r.className = 'ripple';
+  const startSize = big ? 6 : 4;
+  r.style.left = x + 'px'; r.style.top = y + 'px';
+  r.style.width = startSize + 'px'; r.style.height = startSize + 'px';
+  r.style.opacity = big ? '0.5' : '0.28';
+  field.appendChild(r);
+  setTimeout(() => r.remove(), 1100);
+}
+
+function placeMark(text, kind){
+  const { x, y } = allocateSlot();
+  const el = document.createElement('div');
+  el.className = 'mark ' + kind;
+  el.textContent = text;
+  el.style.left = x + 'px'; el.style.top = y + 'px';
+  el.dataset.op = '1';
+  const sizes = { utterance: '1.15rem', echo: '0.95rem' };
+  el.style.fontSize = sizes[kind] || '0.9rem';
+  field.appendChild(el);
+  return { el, x, y };
+}
+
+function placeSwatch(color, kind){
+  const { x, y } = allocateSlot();
+  const el = document.createElement('div');
+  el.className = 'mark swatch ' + kind;
+  el.style.left = x + 'px'; el.style.top = y + 'px';
+  el.dataset.op = '1';
+  const size = kind === 'utterance' ? 32 : 20;
+  el.style.width = size + 'px'; el.style.height = size + 'px';
+  el.style.background = color;
+  field.appendChild(el);
+  return { el, x, y };
+}
+
+function placeThumb(dataUrl){
+  const { x, y } = allocateSlot();
+  const el = document.createElement('div');
+  el.className = 'mark thumb';
+  el.style.left = x + 'px'; el.style.top = y + 'px';
+  el.dataset.op = '1';
+  el.style.backgroundImage = `url(${dataUrl})`;
+  field.appendChild(el);
+  return { el, x, y };
+}
+
+function triggerEcho(text){
+  dismissIntro();
+  roomHeader.classList.add('settled');
+
+  const { x, y } = placeMark(text, 'utterance');
+  placeRipple(x, y, true);
+  log.push(text);
+
+  const words = text.trim().split(/\s+/);
+  const fragment = words.slice(-Math.min(2, words.length)).join(' ');
+  const repeats = 3 + (Math.random() < 0.5 ? 1 : 0);
+  let delay = 650;
+
+  for (let i = 0; i < repeats; i++){
+    setTimeout(() => {
+      const useConnector = i >= 1 && Math.random() < 0.45;
+      const echoText = useConnector ? CONNECTORS[Math.floor(Math.random() * CONNECTORS.length)] : fragment;
+      const { x: ex, y: ey } = placeMark(echoText, 'echo');
+      if (i === 0) placeRipple(ex, ey, false);
+    }, delay);
+    delay += 480 + i * 220;
+  }
+
+  registerUtterance();
+}
+
+function registerUtterance(){
+  utteranceCount++;
+  countLabel.textContent = utteranceCount + ' yankı bırakıldı';
+  if (utteranceCount >= 3) mapLink.classList.add('show');
+}
+
+/* ---------- image echo ---------- */
+let hasImage = false;
+
+function rgbToHex(r, g, b){
+  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
+function blendHex(hexA, hexB, t){
+  const a = [1, 3, 5].map(i => parseInt(hexA.slice(i, i + 2), 16));
+  const b = [1, 3, 5].map(i => parseInt(hexB.slice(i, i + 2), 16));
+  const m = a.map((v, i) => Math.round(v + (b[i] - v) * t));
+  return rgbToHex(m[0], m[1], m[2]);
+}
+
+function sampleColors(img){
+  const c = document.createElement('canvas');
+  c.width = 64; c.height = 64;
+  const cx = c.getContext('2d');
+  cx.drawImage(img, 0, 0, 64, 64);
+  const points = [[16, 16], [48, 16], [32, 32], [16, 48], [48, 48], [32, 10]];
+  return points.map(([px, py]) => {
+    const d = cx.getImageData(px, py, 1, 1).data;
+    return rgbToHex(d[0], d[1], d[2]);
+  });
+}
+
+function triggerImageEcho(dataUrl, colors){
+  dismissIntro();
+  roomHeader.classList.add('settled');
+  hasImage = true;
+
+  const { x, y } = placeThumb(dataUrl);
+  placeRipple(x, y, true);
+  log.push('[görsel: ' + colors.join(',') + ']');
+
+  const repeats = 4 + (Math.random() < 0.5 ? 1 : 0);
+  let delay = 650;
+
+  for (let i = 0; i < repeats; i++){
+    setTimeout(() => {
+      let color = colors[i % colors.length];
+      if (i >= 1 && Math.random() < 0.45){
+        const other = colors[(i + 1) % colors.length];
+        color = blendHex(color, other, 0.5);
+      }
+      const { x: ex, y: ey } = placeSwatch(color, 'echo');
+      if (i === 0) placeRipple(ex, ey, false);
+    }, delay);
+    delay += 480 + i * 220;
+  }
+
+  registerUtterance();
+}
+
+function handleImageFile(file){
+  if (!file || !file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => triggerImageEcho(reader.result, sampleColors(img));
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+const imgBtn = document.getElementById('imgBtn');
+const imageFileInput = document.getElementById('imageFileInput');
+const room = document.getElementById('room');
+
+imgBtn.addEventListener('click', () => imageFileInput.click());
+imageFileInput.addEventListener('change', () => {
+  handleImageFile(imageFileInput.files[0]);
+  imageFileInput.value = '';
+});
+
+['dragover'].forEach(evt => room.addEventListener(evt, e => { e.preventDefault(); room.classList.add('drag-over'); }));
+['dragleave', 'drop'].forEach(evt => room.addEventListener(evt, e => { e.preventDefault(); room.classList.remove('drag-over'); }));
+room.addEventListener('drop', e => {
+  const file = e.dataTransfer.files && e.dataTransfer.files[0];
+  if (file) handleImageFile(file);
+});
+
+input.addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const val = input.value.trim();
+  if (!val){
+    promptBar.classList.add('shake');
+    setTimeout(() => promptBar.classList.remove('shake'), 400);
+    return;
+  }
+  triggerEcho(val);
+  input.value = '';
+});
+
+window.addEventListener('load', () => input.focus());
+
+/* ---------- info popover ---------- */
+const infoPop = document.getElementById('infoPop');
+document.getElementById('infoBtn').addEventListener('click', () => infoPop.hidden = !infoPop.hidden);
+document.getElementById('infoClose').addEventListener('click', () => infoPop.hidden = true);
+
+/* ---------- hash + seeded random ---------- */
+function hashString(str){
+  let h = 0;
+  for (let i = 0; i < str.length; i++) h = (Math.imul(h, 31) + str.charCodeAt(i)) | 0;
+  return h >>> 0;
+}
+function mulberry32(seed){
+  return function(){
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const NODE_POOL = [
+  { label: "Edebiyat ve şiir arşivleri", echo: "Bir dize, senin sesini taşıyordu." },
+  { label: "Sosyal medya paylaşımları", echo: "Bir paylaşım, seninkine çok benziyordu." },
+  { label: "Mektuplar ve günlükler", echo: "Biri, seninkine benzer bir itirafta bulunmuştu." },
+  { label: "Forum ve tartışma platformları", echo: "Biri, senin sorduğun soruyu sormuştu." },
+  { label: "Haber arşivleri", echo: "Bir başlık, senin kelimelerini kullanmıştı." },
+  { label: "Akademik makaleler", echo: "Bir cümle, seninkiyle aynı düşünceyi taşıyordu." }
+];
+const IMAGE_POOL = [
+  { label: "Görsel sanat ve illüstrasyon", echo: "Bir çizgi, seninkiyle aynı açıyı arıyordu." },
+  { label: "Fotoğraf arşivleri", echo: "Bir kare, seninkiyle aynı ışığı yakalamıştı." }
+];
+const PALETTE = ['#c4522a', '#4c7ea8', '#c99a3e', '#9e4c6b', '#6e8b5e', '#a87cc4'];
+
+/* ---------- map screen ---------- */
+const mapScreen = document.getElementById('mapScreen');
+
+function openMap(){
+  const seed = log.join(' | ') || 'sessizlik';
+  const rand = mulberry32(hashString(seed));
+  const boost = Math.min(utteranceCount * 2, 20);
+  const pool = NODE_POOL.concat(hasImage ? IMAGE_POOL : []);
+
+  const nodes = pool.map(n => ({
+    label: n.label, echo: n.echo,
+    pct: Math.min(96, 20 + Math.floor(rand() * 60) + boost)
+  })).sort((a, b) => b.pct - a.pct).slice(0, 5);
+
+  const n = nodes.length, center = 300, dist = 200;
+  nodes.forEach((node, i) => {
+    const angle = (-90 + i * (360 / n)) * Math.PI / 180;
+    node.x = center + dist * Math.cos(angle);
+    node.y = center + dist * Math.sin(angle);
+    node.color = PALETTE[i % PALETTE.length];
+  });
+
+  const svg = document.getElementById('linesSvg');
+  svg.innerHTML = '';
+  const wrap = document.getElementById('constellationWrap');
+  wrap.querySelectorAll('.echo-node').forEach(el => el.remove());
+
+  nodes.forEach((node, i) => {
+    const len = Math.hypot(node.x - center, node.y - center);
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', center); line.setAttribute('y1', center);
+    line.setAttribute('x2', node.x); line.setAttribute('y2', node.y);
+    line.setAttribute('class', 'echo-line');
+    line.setAttribute('stroke', node.color);
+    line.setAttribute('stroke-width', 0.6 + (node.pct / 100) * 1.3);
+    line.setAttribute('stroke-opacity', 0.25 + (node.pct / 100) * 0.45);
+    line.setAttribute('stroke-dasharray', len);
+    line.setAttribute('stroke-dashoffset', len);
+    svg.appendChild(line);
+    setTimeout(() => { line.style.strokeDashoffset = '0'; }, 80 + i * 140);
+
+    const div = document.createElement('div');
+    div.className = 'echo-node';
+    div.style.left = (node.x / 600 * 100) + '%';
+    div.style.top = (node.y / 600 * 100) + '%';
+    div.style.setProperty('--c', node.color);
+    const size = 38 + (node.pct / 100) * 26;
+    div.innerHTML = `<div class="node-circle" style="width:${size}px;height:${size}px"><span class="node-pct">%${node.pct}</span></div><div class="node-label">${node.label}</div>`;
+    wrap.appendChild(div);
+    setTimeout(() => div.classList.add('visible'), 200 + i * 140);
+  });
+
+  const top = nodes[0];
+  document.getElementById('mapSummary').innerHTML =
+    `${utteranceCount} kez konuştun. İzin en çok <strong>${top.label.toLocaleLowerCase('tr-TR')}</strong>'de yankılanıyor <span class="pct">%${top.pct}</span> olasılıkla. Sen zaten oradaydın — şimdi geri dönüyor.`;
+
+  mapScreen.classList.add('show');
+}
+
+mapLink.addEventListener('click', openMap);
+document.getElementById('mapReset').addEventListener('click', () => {
+  mapScreen.classList.remove('show');
+  field.querySelectorAll('.mark, .ripple').forEach(el => el.remove());
+  log = []; utteranceCount = 0; markCount = 0; hasImage = false;
+  countLabel.textContent = '';
+  mapLink.classList.remove('show');
+  roomHeader.classList.remove('settled');
+  field.appendChild(introMsg);
+  introMsg.style.opacity = '1';
+  setTimeout(() => input.focus(), 600);
+});
+</script>
+
+</body>
+</html>
